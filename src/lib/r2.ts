@@ -14,6 +14,25 @@ export async function uploadToR2(
     try {
         const { env } = await getCloudflareContext();
 
+        // 1. Check if the R2 bucket binding exists
+        if (!env.next_cf_app_bucket) {
+             console.error("R2 upload error: R2 bucket binding 'next_cf_app_bucket' not found.");
+             return {
+                success: false,
+                error: "Server configuration error: R2 bucket is not bound.",
+             };
+        }
+
+        // 2. Check if the R2 public URL is configured
+        const r2PublicUrl = (env as any).CLOUDFLARE_R2_URL as string;
+        if (!r2PublicUrl) {
+            console.error("R2 upload error: CLOUDFLARE_R2_URL environment variable is not set.");
+            return {
+                success: false,
+                error: "Server configuration error: R2 public URL is not set.",
+            };
+        }
+
         // Generate unique filename
         const timestamp = Date.now();
         const randomId = Math.random().toString(36).substring(2, 15);
@@ -24,7 +43,7 @@ export async function uploadToR2(
         const arrayBuffer = await file.arrayBuffer();
 
         // Upload to R2
-        const result = await env.next_cf_app_bucket.put(key, arrayBuffer, {
+        await env.next_cf_app_bucket.put(key, arrayBuffer, {
             httpMetadata: {
                 contentType: file.type,
                 cacheControl: "public, max-age=31536000", // 1 year
@@ -36,19 +55,18 @@ export async function uploadToR2(
             },
         });
 
-        if (!result) {
-            return {
-                success: false,
-                error: "Upload failed",
-            };
+        // 3. Safely construct the public URL
+        let finalUrl = r2PublicUrl;
+        if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+            finalUrl = `https://${finalUrl}`;
         }
-
-        // Return public URL of R2 (should be using custom domain)
-        const publicUrl = `https://${(env as any).CLOUDFLARE_R2_URL}/${key}`;
+        if (finalUrl.endsWith('/')) {
+            finalUrl = finalUrl.slice(0, -1);
+        }
 
         return {
             success: true,
-            url: publicUrl,
+            url: `${finalUrl}/${key}`,
             key: key,
         };
     } catch (error) {
