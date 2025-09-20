@@ -30,6 +30,10 @@ const createAuth = async () => {
             },
         },
         plugins: [nextCookies()],
+        trustedOrigins: [
+            "https://todo.010607.xyz",
+            "https://next-cf-app.psyduckgagaga7.workers.dev",
+        ],
     });
 
     return authInstance;
