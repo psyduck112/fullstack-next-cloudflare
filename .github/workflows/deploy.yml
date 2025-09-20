@@ -32,32 +32,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Cache OpenNext build
-        uses: actions/cache@v4
-        with:
-          path: |
-            .next/cache
-            .open-next
-          key: ${{ runner.os }}-opennext-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('**/*.[jt]s', '**/*.[jt]sx', '**/*.ts', '**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-opennext-${{ hashFiles('pnpm-lock.yaml') }}-
-
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
       - name: Build application
         run: pnpm run preview:cf
-        env:
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-
-      - name: Verify build output
-        run: |
-          echo "Checking build output..."
-          ls -la .open-next/ || echo "No .open-next directory found"
-          ls -la .next/ || echo "No .next directory found"
-          echo "Build verification complete"
 
       - name: Run database migrations (Preview)
         uses: cloudflare/wrangler-action@v3
@@ -73,16 +52,12 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           environment: preview
+          command: deploy --env preview
           secrets: |
             BETTER_AUTH_SECRET
             GOOGLE_CLIENT_ID
             GOOGLE_CLIENT_SECRET
             CLOUDFLARE_R2_URL
-        env:
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          CLOUDFLARE_R2_URL: ${{ secrets.CLOUDFLARE_R2_URL }}
 
       - name: Comment PR with preview URL
         uses: actions/github-script@v7
@@ -92,7 +67,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '🚀 Preview deployed! Check it out at: https://next-cf-app-preview.effendi-official.workers.dev'
+              body: '🚀 Preview deployed! Check it out at: https://preview.next-cf-app.psyduckgagaga7.workers.dev'
             })
 
   # Deploy to production (main branch)
@@ -140,14 +115,3 @@ jobs:
             GOOGLE_CLIENT_ID
             GOOGLE_CLIENT_SECRET
             CLOUDFLARE_R2_URL
-
-
-  # Cleanup job
-  cleanup:
-    name: Cleanup
-    runs-on: ubuntu-latest
-    needs: [deploy-production, deploy-preview]
-    if: always()
-    steps:
-      - name: Cleanup artifacts
-        run: echo "Cleaning up temporary files and caches..."
