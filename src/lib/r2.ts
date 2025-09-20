@@ -14,7 +14,6 @@ export async function uploadToR2(
     try {
         const { env } = await getCloudflareContext();
 
-        // 1. Check if the R2 bucket binding exists
         if (!env.next_cf_app_bucket) {
              console.error("R2 upload error: R2 bucket binding 'next_cf_app_bucket' not found.");
              return {
@@ -23,7 +22,6 @@ export async function uploadToR2(
              };
         }
 
-        // 2. Check if the R2 public URL is configured
         const r2PublicUrl = (env as any).CLOUDFLARE_R2_URL as string;
         if (!r2PublicUrl) {
             console.error("R2 upload error: CLOUDFLARE_R2_URL environment variable is not set.");
@@ -33,20 +31,17 @@ export async function uploadToR2(
             };
         }
 
-        // Generate unique filename
         const timestamp = Date.now();
         const randomId = Math.random().toString(36).substring(2, 15);
         const extension = file.name.split(".").pop() || "bin";
         const key = `${folder}/${timestamp}_${randomId}.${extension}`;
 
-        // Convert File to ArrayBuffer
         const arrayBuffer = await file.arrayBuffer();
 
-        // Upload to R2
         await env.next_cf_app_bucket.put(key, arrayBuffer, {
             httpMetadata: {
                 contentType: file.type,
-                cacheControl: "public, max-age=31536000", // 1 year
+                cacheControl: "public, max-age=31536000",
             },
             customMetadata: {
                 originalName: file.name,
@@ -55,7 +50,6 @@ export async function uploadToR2(
             },
         });
 
-        // 3. Safely construct the public URL
         let finalUrl = r2PublicUrl;
         if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
             finalUrl = `https://${finalUrl}`;
@@ -88,4 +82,29 @@ export async function getFromR2(key: string): Promise<R2Object | null> {
     }
 }
 
-export async function listR2Files() {}
+// --- 新增的函数 ---
+export async function deleteFromR2(
+    key: string,
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        const { env } = await getCloudflareContext();
+
+        if (!env.next_cf_app_bucket) {
+            console.error("R2 delete error: R2 bucket binding 'next_cf_app_bucket' not found.");
+            return {
+                success: false,
+                error: "Server configuration error: R2 bucket is not bound.",
+            };
+        }
+
+        await env.next_cf_app_bucket.delete(key);
+        console.log(`Successfully deleted R2 object: ${key}`);
+        return { success: true };
+    } catch (error) {
+        console.error("R2 delete error:", error);
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : "Delete from R2 failed",
+        };
+    }
+}
