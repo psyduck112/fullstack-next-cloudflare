@@ -116,37 +116,11 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Cache Next.js build
-        uses: actions/cache@v4
-        with:
-          path: |
-            .next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('**/*.[jt]s', '**/*.[jt]sx', '**/*.ts', '**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('pnpm-lock.yaml') }}-
-
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
       - name: Build application
         run: pnpm run build:cf
-        env:
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-
-      - name: Generate backup filename
-        id: backup
-        run: |
-          timestamp=$(date +%Y%m%d_%H%M%S)
-          echo "filename=backup_prod_${timestamp}.sql" >> $GITHUB_OUTPUT
-
-      - name: Backup production database
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: d1 export next-cf-app --output ${{ steps.backup.outputs.filename }}
 
       - name: Run database migrations (Production)
         uses: cloudflare/wrangler-action@v3
@@ -160,26 +134,12 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
           secrets: |
             BETTER_AUTH_SECRET
             GOOGLE_CLIENT_ID
             GOOGLE_CLIENT_SECRET
             CLOUDFLARE_R2_URL
-        env:
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          CLOUDFLARE_R2_URL: ${{ secrets.CLOUDFLARE_R2_URL }}
-
-      - name: Wait for deployment
-        run: sleep 10
-
-      - name: Post-deployment verification
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: --version
 
 
   # Cleanup job
